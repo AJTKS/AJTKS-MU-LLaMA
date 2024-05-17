@@ -36,14 +36,17 @@ def train_one_epoch(model: LLaMA_adapter,
             lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         imgs = imgs.to(device, non_blocking=True)
-        with torch.cuda.amp.autocast():
+        ###bf16 added 05/17 19:07
+        with torch.cuda.amp.autocast(dtype=torch.bfloat16):
             c_loss, m_loss = model(examples, labels, imgs)
         loss = c_loss + m_loss * 0
         loss_value = loss.item()
         c_loss_value = c_loss.item()
         m_loss_value = m_loss
         if not math.isfinite(loss_value):
+            print(f"ERROR: {torch.isnan(examples).any()}, {torch.isnan(labels).any()}, {torch.isnan(imgs).any()}")
             print("Loss is {}, stopping training".format(loss_value))
+            # continue
             sys.exit(1)
 
         loss /= accum_iter
@@ -68,8 +71,9 @@ def train_one_epoch(model: LLaMA_adapter,
             This calibrates different curves when batch size changes.
             """
             epoch_1000x = int((data_iter_step / len(data_loader) + epoch) * 1000)
+            # print(type(c_loss_value_reduce),type(m_loss_value_reduce))
             log_writer.add_scalar('c_train_loss', c_loss_value_reduce, epoch_1000x)
-            log_writer.add_scalar('m_train_loss', m_loss_value_reduce, epoch_1000x)
+            log_writer.add_scalar('m_train_loss', m_loss_value_reduce.float(), epoch_1000x)
             log_writer.add_scalar('lr', lr, epoch_1000x)
 
     # gather the stats from all processes
