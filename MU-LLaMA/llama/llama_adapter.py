@@ -272,6 +272,12 @@ class LLaMA_adapter(nn.Module):
         return output.float()
 
     def forward(self, tokens, labels, imgs):
+        expected_vocab_size = 128256  # Or make this configurable
+        actual_vocab_size = self.llama.vocab_size
+        print(f"Expected vocab size: {expected_vocab_size}, Actual vocab size: {actual_vocab_size}")
+        if actual_vocab_size != expected_vocab_size:
+            print(f"Warning: Vocabulary size mismatch. Expected: {expected_vocab_size}, Got: {actual_vocab_size}")
+            
         audio_feats = self.forward_audio({'Audio': [imgs, 1]})
 
         _bsz, seqlen = tokens.shape
@@ -301,7 +307,7 @@ class LLaMA_adapter(nn.Module):
         if labels.sum() == 0:
             c_loss = output.mean() * 0
         else:
-            assert self.llama.vocab_size == 32000
+            assert self.llama.vocab_size == 128256
             c_loss = self.criterion(output.reshape(-1, self.llama.vocab_size), labels.flatten())
 
         return c_loss, c_loss
@@ -375,8 +381,9 @@ class LLaMA_adapter(nn.Module):
 
 
 def load(model_path, llama_dir, mert_path="m-a-p/MERT-v1-330M", device="cuda" if torch.cuda.is_available() else "cpu",
-         knn=False, knn_dir="./ckpts", llama_type="7B", phase="finetune"):
+         knn=False, knn_dir="./ckpts", llama_type="8B", phase="finetune"):
     llama_ckpt_dir = os.path.join(llama_dir, llama_type)
+    print("확인", llama_ckpt_dir)
     llama_tokenzier_path = os.path.join(llama_dir, 'tokenizer.model')
 
     # load llama_adapter weights and model_cfg
